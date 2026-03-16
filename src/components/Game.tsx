@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Play, RotateCcw, Zap, Flag } from 'lucide-react';
+import { Play, RotateCcw, Zap, Flag, Settings, User, Trophy, Info, X, Star } from 'lucide-react';
 
 import bananaSvg from '../../assets/banana.svg';
 import espaldaNanaSvg from '../../assets/espalda nana.svg';
@@ -7,6 +7,8 @@ import troncoSvg from '../../assets/tronco.svg';
 import nanaSvg from '../../assets/nana.svg';
 import espaldaMonoSvg from '../../assets/espalda mono.svg';
 import monoSvg from '../../assets/mono.svg';
+
+const musicUrl = "https://cdn.pixabay.com/audio/2022/01/18/audio_d0a13f69d2.mp3"; // Upbeat game-like track
 
 const imgBanana = new Image();
 imgBanana.src = bananaSvg;
@@ -52,6 +54,8 @@ interface GameObject {
   type: 'log' | 'peel';
   active: boolean;
   laneOffset: number;
+  moveDir?: number;
+  moveSpeed?: number;
 }
 
 interface TreeObject {
@@ -69,10 +73,16 @@ interface GameState {
   peelsCollected: number;
   monkeyDistance: number; // 0-100, 0 means caught
   progress: number; // 0-100
+  showOptions: boolean;
+  showProfile: boolean;
+  showAchievements: boolean;
+  playerName: string;
+  volume: number;
 }
 
 export default function Game() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [gameState, setGameState] = useState<GameState>({
     isPlaying: false,
     gameOver: false,
@@ -81,7 +91,31 @@ export default function Game() {
     peelsCollected: 0,
     monkeyDistance: 100,
     progress: 0,
+    showOptions: false,
+    showProfile: false,
+    showAchievements: false,
+    playerName: 'Player 1',
+    volume: 0.5,
   });
+
+  useEffect(() => {
+    if (gameState.isPlaying) {
+      if (!audioRef.current) {
+        audioRef.current = new Audio(musicUrl);
+        audioRef.current.loop = true;
+      }
+      // Ensure volume is a finite number between 0 and 1
+      const safeVolume = Number.isFinite(gameState.volume) 
+        ? Math.max(0, Math.min(1, gameState.volume)) 
+        : 0.5;
+      audioRef.current.volume = safeVolume;
+      audioRef.current.play().catch(e => console.log("Audio play failed:", e));
+    } else {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+    }
+  }, [gameState.isPlaying, gameState.volume]);
 
   // Game Mutable State (Refs for performance in loop)
   const stateRef = useRef({
@@ -248,14 +282,19 @@ export default function Game() {
       const lane = Math.floor(Math.random() * 3) - 1; // -1, 0, 1
       const laneOffset = lane * (ROAD_WIDTH / 3);
       
+      const logWidth = type === 'log' ? OBSTACLE_WIDTH * (Math.random() * 1.5 + 0.5) : POWERUP_WIDTH;
+      const logHeight = type === 'log' ? OBSTACLE_HEIGHT * (Math.random() * 0.5 + 0.8) : POWERUP_HEIGHT;
+
       state.objects.push({
         x: 0, // Calculated dynamically
         y: -100,
-        width: type === 'log' ? OBSTACLE_WIDTH : POWERUP_WIDTH,
-        height: type === 'log' ? OBSTACLE_HEIGHT : POWERUP_HEIGHT,
+        width: logWidth,
+        height: logHeight,
         type: type,
         active: true,
-        laneOffset: laneOffset
+        laneOffset: laneOffset,
+        moveDir: type === 'log' ? (Math.random() > 0.5 ? 1 : -1) : 0,
+        moveSpeed: type === 'log' ? Math.random() * 3 + 1 : 0
       });
     }
 
@@ -277,6 +316,16 @@ export default function Game() {
     // Update Objects
     state.objects.forEach(obj => {
       obj.y += state.speed;
+      
+      if (obj.type === 'log' && obj.moveDir !== undefined && obj.moveSpeed !== undefined) {
+        obj.laneOffset += obj.moveDir * obj.moveSpeed;
+        const limit = ROAD_WIDTH / 2 - obj.width / 2;
+        if (Math.abs(obj.laneOffset) > limit) {
+          obj.moveDir *= -1;
+          obj.laneOffset = Math.sign(obj.laneOffset) * limit;
+        }
+      }
+      
       obj.x = getRoadCenter(obj.y, state.roadOffset) + obj.laneOffset - obj.width / 2;
     });
     state.objects = state.objects.filter(obj => obj.y < CANVAS_HEIGHT + 100);
@@ -380,7 +429,7 @@ export default function Game() {
 
       if (tree.type === 3) {
         // Draw mono.svg instead of exotic plant
-        const monoScale = 1.3;
+        const monoScale = 0.7; // Reduced from 0.9
         ctx.drawImage(imgMono, -(tree.size * monoScale)/2, -(tree.size * monoScale), tree.size * monoScale, tree.size * monoScale);
       } else {
         // Draw a standard jungle tree/bush
@@ -429,7 +478,7 @@ export default function Game() {
       if (obj.type === 'log') {
         ctx.drawImage(imgTronco, obj.x, obj.y, obj.width, obj.height);
       } else {
-        const scale = 1.3;
+        const scale = 2.2; // Increased from 1.8
         const dw = obj.width * scale;
         const dh = obj.height * scale;
         ctx.drawImage(imgBanana, obj.x - (dw - obj.width)/2, obj.y - (dh - obj.height)/2, dw, dh);
@@ -445,7 +494,7 @@ export default function Game() {
       ctx.rotate(Math.sin(stateRef.current.frame * 0.5) * 0.1);
     }
     
-    const pScale = 1.3;
+    const pScale = 2.2; // Increased from 1.8
     ctx.drawImage(imgEspaldaNana, -(PLAYER_WIDTH * pScale)/2, -(PLAYER_HEIGHT * pScale)/2, PLAYER_WIDTH * pScale, PLAYER_HEIGHT * pScale);
     
     ctx.restore();
@@ -460,43 +509,38 @@ export default function Game() {
       ctx.save();
       ctx.translate(monkeyX + PLAYER_WIDTH/2, monkeyY + PLAYER_HEIGHT/2);
       
-      ctx.drawImage(imgEspaldaMono, -45, -45, 90, 90);
+      ctx.drawImage(imgEspaldaMono, -80, -80, 160, 160); // Increased from 130x130
 
       ctx.restore();
     }
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-900 text-white font-sans">
-      <div className="mb-4 text-center">
-        <h1 className="text-4xl font-bold text-yellow-400 mb-2">Nanaba</h1>
-        <p className="text-zinc-400">Run from the monkey! WASD to move.</p>
-      </div>
-
-      <div className="relative">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-[#1a3d1d] text-white font-sans overflow-hidden">
+      <div className="relative w-full max-w-[400px]">
         <canvas
           ref={canvasRef}
           width={CANVAS_WIDTH}
           height={CANVAS_HEIGHT}
-          className="bg-zinc-800 rounded-lg shadow-2xl border-4 border-zinc-700"
+          className="bg-[#2e7d32] rounded-xl shadow-2xl border-8 border-[#5d4037]"
         />
 
         {/* HUD Top */}
-        <div className="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none">
-          <div className="bg-black/60 p-2 rounded-lg backdrop-blur-sm border border-white/10">
-            <div className="text-xs text-zinc-400 uppercase tracking-wider flex items-center gap-1">
-              <Zap size={12} className="text-yellow-400" /> Energía
+        <div className="absolute top-6 left-6 right-6 flex justify-between items-start pointer-events-none">
+          <div className="bg-[#5d4037]/90 p-3 rounded-lg border-2 border-[#8d6e63] shadow-lg">
+            <div className="text-[10px] text-[#d7ccc8] uppercase font-black flex items-center gap-1 mb-1">
+              <Zap size={12} className="text-yellow-400" /> ENERGÍA
             </div>
-            <div className="text-2xl font-mono text-yellow-400">{gameState.peelsCollected}</div>
+            <div className="text-3xl font-black text-yellow-400 leading-none drop-shadow-sm">{gameState.peelsCollected}</div>
           </div>
           
-          <div className="bg-black/60 p-2 rounded-lg backdrop-blur-sm w-48 border border-white/10">
-            <div className="text-xs text-zinc-400 uppercase tracking-wider mb-1">Distancia del Mono</div>
-            <div className="h-3 bg-zinc-800 rounded-full overflow-hidden border border-white/5">
+          <div className="bg-[#5d4037]/90 p-3 rounded-lg border-2 border-[#8d6e63] shadow-lg w-40">
+            <div className="text-[10px] text-[#d7ccc8] uppercase font-black mb-2">DISTANCIA MONO</div>
+            <div className="h-4 bg-[#3e2723] rounded-full overflow-hidden border-2 border-[#2d1b18] p-0.5">
               <div 
-                className={`h-full transition-all duration-200 ${
+                className={`h-full rounded-full transition-all duration-300 ${
                   gameState.monkeyDistance < 30 ? 'bg-red-500' : 
-                  gameState.monkeyDistance < 60 ? 'bg-yellow-500' : 'bg-green-500'
+                  gameState.monkeyDistance < 60 ? 'bg-orange-500' : 'bg-lime-500'
                 }`}
                 style={{ width: `${Math.max(0, gameState.monkeyDistance)}%` }}
               />
@@ -505,15 +549,15 @@ export default function Game() {
         </div>
 
         {/* HUD Bottom - Progress Bar */}
-        <div className="absolute bottom-4 left-4 right-4 pointer-events-none">
-          <div className="bg-black/60 p-2 rounded-lg backdrop-blur-sm border border-white/10">
-            <div className="flex justify-between text-xs text-zinc-400 uppercase tracking-wider mb-1">
-              <span>Inicio</span>
-              <span className="flex items-center gap-1"><Flag size={12} /> Meta</span>
+        <div className="absolute bottom-6 left-6 right-6 pointer-events-none">
+          <div className="bg-[#5d4037]/90 p-3 rounded-lg border-2 border-[#8d6e63] shadow-lg">
+            <div className="flex justify-between text-[10px] text-[#d7ccc8] font-black uppercase mb-2">
+              <span>INICIO</span>
+              <span className="flex items-center gap-1"><Flag size={12} /> META</span>
             </div>
-            <div className="h-2 bg-zinc-800 rounded-full overflow-hidden border border-white/5 relative">
+            <div className="h-3 bg-[#3e2723] rounded-full overflow-hidden border-2 border-[#2d1b18]">
               <div 
-                className="h-full bg-lime-400 shadow-[0_0_10px_rgba(163,230,53,0.8)] transition-all duration-200"
+                className="h-full bg-lime-400 shadow-[0_0_15px_rgba(163,230,53,0.6)] transition-all duration-300"
                 style={{ width: `${gameState.progress}%` }}
               />
             </div>
@@ -522,42 +566,77 @@ export default function Game() {
 
         {/* Start Screen */}
         {!gameState.isPlaying && !gameState.gameOver && !gameState.hasWon && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center rounded-lg overflow-hidden">
-            <div 
-              className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?q=80&w=1000&auto=format&fit=crop')] bg-cover bg-center opacity-60"
-              style={{ animation: 'panImage 30s linear infinite alternate' }}
-            />
-            <style>{`
-              @keyframes panImage {
-                0% { transform: scale(1) translate(0, 0); }
-                100% { transform: scale(1.1) translate(-2%, -2%); }
-              }
-            `}</style>
-            <div className="absolute inset-0 bg-[#0a1f0d]/70 backdrop-blur-sm" />
-            
-            <div className="relative z-10 flex flex-col items-center p-8">
-              <img src={bananaSvg} alt="Banana" className="w-16 h-16 mb-4 drop-shadow-xl" />
-              <h2 className="text-3xl font-bold mb-4 text-yellow-300 uppercase tracking-widest drop-shadow-lg">Nanaba</h2>
-              <div className="space-y-4 text-center mb-8 text-zinc-100 bg-black/40 p-6 rounded-xl border border-white/20 text-base leading-relaxed max-w-sm backdrop-blur-md shadow-2xl">
-                <p>
-                  En lo profundo de la selva, una banana muy peculiar intenta sobrevivir.
-                </p>
-                <p>
-                  Un mono hambriento la ha elegido como su próxima comida y la persecución ha comenzado.
-                </p>
-                <p>
-                  Mientras escapa, la banana puede recolectar cáscaras con los que ganas mini-boost
-                </p>
-                <p className="text-yellow-300 font-medium">
-                  Pero en la selva cada decisión importa, porque una cáscara puede salvarte o convertirte en el almuerzo del mono. 🍌🐒
-                </p>
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm rounded-lg">
+            <div className="relative w-[90%] bg-[#5d4037] p-8 rounded-2xl border-8 border-[#3e2723] shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col items-center">
+              {/* Wooden Planks Texture */}
+              <div className="absolute inset-0 opacity-20 pointer-events-none rounded-lg overflow-hidden" 
+                   style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 40px, #000 41px)', backgroundSize: '100% 41px' }} />
+              
+              <div className="relative z-10 w-full flex flex-col items-center">
+                <img src={nanaSvg} alt="Nana" className="w-16 h-16 mb-4 drop-shadow-lg" />
+                <div className="bg-[#3e2723] px-6 py-2 rounded-full border-2 border-[#8d6e63] mb-8 shadow-inner">
+                  <h1 className="text-4xl font-black text-yellow-400 tracking-widest italic drop-shadow-md">NANABA</h1>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 w-full mb-8">
+                  <button 
+                    onClick={startGame}
+                    className="group relative bg-[#8d6e63] hover:bg-[#a1887f] p-4 rounded-xl border-b-8 border-[#3e2723] active:border-b-0 active:translate-y-2 transition-all flex items-center justify-center gap-3"
+                  >
+                    <Play className="text-yellow-400 fill-yellow-400 group-hover:scale-110 transition-transform" size={28} />
+                    <span className="text-2xl font-black italic tracking-tighter">JUGAR</span>
+                  </button>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <button 
+                      onClick={() => setGameState(prev => ({ ...prev, showOptions: true }))}
+                      className="bg-[#6d4c41] hover:bg-[#795548] p-3 rounded-xl border-b-4 border-[#3e2723] active:border-b-0 active:translate-y-1 transition-all flex flex-col items-center gap-1"
+                    >
+                      <Settings size={20} className="text-[#d7ccc8]" />
+                      <span className="text-xs font-black italic">OPCIONES</span>
+                    </button>
+                    <button 
+                      onClick={() => setGameState(prev => ({ ...prev, showAchievements: true }))}
+                      className="bg-[#6d4c41] hover:bg-[#795548] p-3 rounded-xl border-b-4 border-[#3e2723] active:border-b-0 active:translate-y-1 transition-all flex flex-col items-center gap-1"
+                    >
+                      <Trophy size={20} className="text-[#d7ccc8]" />
+                      <span className="text-xs font-black italic">LOGROS</span>
+                    </button>
+                    <button 
+                      onClick={() => setGameState(prev => ({ ...prev, showProfile: true }))}
+                      className="bg-[#6d4c41] hover:bg-[#795548] p-3 rounded-xl border-b-4 border-[#3e2723] active:border-b-0 active:translate-y-1 transition-all flex flex-col items-center gap-1"
+                    >
+                      <User size={20} className="text-[#d7ccc8]" />
+                      <span className="text-xs font-black italic">PERFIL</span>
+                    </button>
+                    <button className="bg-[#6d4c41] hover:bg-[#795548] p-3 rounded-xl border-b-4 border-[#3e2723] active:border-b-0 active:translate-y-1 transition-all flex flex-col items-center gap-1">
+                      <Star size={20} className="text-[#d7ccc8]" />
+                      <span className="text-xs font-black italic">EXTRA</span>
+                    </button>
+                  </div>
+                </div>
+
+                <button className="w-full bg-[#3e2723] hover:bg-[#4e342e] p-3 rounded-xl border-b-4 border-[#1b110f] active:border-b-0 active:translate-y-1 transition-all text-[#8d6e63] font-black italic text-sm">
+                  SALIR
+                </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Game Over Screen */}
+        {gameState.gameOver && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-900/40 backdrop-blur-sm rounded-lg">
+            <div className="bg-[#5d4037] p-8 rounded-2xl border-8 border-[#3e2723] shadow-2xl flex flex-col items-center max-w-[80%]">
+              <div className="bg-red-600 px-6 py-2 rounded-full border-2 border-red-400 mb-6 shadow-lg -rotate-3">
+                <h2 className="text-3xl font-black text-white italic tracking-tighter">¡TE ATRAPARON!</h2>
+              </div>
+              <p className="text-[#d7ccc8] font-bold mb-6 text-center italic">El mono te alcanzó antes de llegar a la meta.</p>
               <button
                 onClick={startGame}
-                className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-black font-bold py-4 px-10 rounded-full transition-all hover:scale-105 active:scale-95 shadow-[0_0_30px_rgba(253,224,71,0.4)]"
+                className="w-full bg-yellow-400 hover:bg-yellow-300 text-[#3e2723] p-4 rounded-xl border-b-8 border-yellow-600 active:border-b-0 active:translate-y-2 transition-all font-black text-xl italic"
               >
-                <Play size={24} fill="currentColor" />
-                COMENZAR
+                REINTENTAR
               </button>
             </div>
           </div>
@@ -565,64 +644,148 @@ export default function Game() {
 
         {/* Win Screen */}
         {gameState.hasWon && (
-          <div className="absolute inset-0 bg-green-900/90 flex flex-col items-center justify-center rounded-lg backdrop-blur-md">
-            <img src={nanaSvg} alt="Nana" className="w-24 h-24 mb-4 drop-shadow-xl" />
-            <h2 className="text-4xl font-bold mb-2 text-white">¡ESCAPASTE!</h2>
-            <p className="text-xl text-green-200 mb-6">La banana vivirá un día más.</p>
-            
-            <div className="flex gap-4 mb-8">
-              <div className="bg-black/40 p-4 rounded-xl text-center border border-white/10">
-                <div className="text-sm text-zinc-400 uppercase tracking-wider">Tiempo</div>
-                <div className="text-3xl font-mono text-white">{gameState.score}s</div>
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-lime-900/40 backdrop-blur-sm rounded-lg">
+            <div className="bg-[#5d4037] p-8 rounded-2xl border-8 border-[#3e2723] shadow-2xl flex flex-col items-center max-w-[80%]">
+              <div className="bg-lime-500 px-6 py-2 rounded-full border-2 border-lime-300 mb-6 shadow-lg rotate-3">
+                <h2 className="text-3xl font-black text-white italic tracking-tighter">¡ESCAPASTE!</h2>
               </div>
-              <div className="bg-black/40 p-4 rounded-xl text-center border border-white/10">
-                <div className="text-sm text-zinc-400 uppercase tracking-wider">Energía</div>
-                <div className="text-3xl font-mono text-yellow-400">{gameState.peelsCollected}</div>
-              </div>
-            </div>
+              
+              <img src={nanaSvg} alt="Nana" className="w-16 h-16 mb-6 drop-shadow-lg" />
 
-            <button
-              onClick={startGame}
-              className="flex items-center gap-2 bg-white hover:bg-zinc-200 text-green-900 font-bold py-3 px-8 rounded-full transition-transform hover:scale-105 active:scale-95"
-            >
-              <RotateCcw size={24} />
-              Jugar de Nuevo
-            </button>
+              <div className="flex gap-4 mb-8">
+                <div className="bg-[#3e2723] p-3 rounded-xl border-2 border-[#8d6e63] flex flex-col items-center">
+                  <span className="text-[10px] text-[#8d6e63] font-black uppercase">ENERGÍA</span>
+                  <span className="text-2xl font-black text-yellow-400">{gameState.peelsCollected}</span>
+                </div>
+                <div className="bg-[#3e2723] p-3 rounded-xl border-2 border-[#8d6e63] flex flex-col items-center">
+                  <span className="text-[10px] text-[#8d6e63] font-black uppercase">TIEMPO</span>
+                  <span className="text-2xl font-black text-white">{gameState.score}s</span>
+                </div>
+              </div>
+              <button
+                onClick={startGame}
+                className="w-full bg-yellow-400 hover:bg-yellow-300 text-[#3e2723] p-4 rounded-xl border-b-8 border-yellow-600 active:border-b-0 active:translate-y-2 transition-all font-black text-xl italic"
+              >
+                JUGAR DE NUEVO
+              </button>
+            </div>
           </div>
         )}
 
-        {/* Game Over Screen */}
-        {gameState.gameOver && (
-          <div className="absolute inset-0 bg-red-900/90 flex flex-col items-center justify-center rounded-lg backdrop-blur-md">
-            <div className="text-6xl mb-4">🐒</div>
-            <h2 className="text-4xl font-bold mb-2 text-white">¡ATRAPADO!</h2>
-            <p className="text-xl text-red-200 mb-6">El mono te alcanzó.</p>
-            
-            <div className="flex gap-4 mb-8">
-              <div className="bg-black/40 p-4 rounded-xl text-center border border-white/10">
-                <div className="text-sm text-zinc-400 uppercase tracking-wider">Progreso</div>
-                <div className="text-3xl font-mono text-white">{Math.floor(gameState.progress)}%</div>
-              </div>
-              <div className="bg-black/40 p-4 rounded-xl text-center border border-white/10">
-                <div className="text-sm text-zinc-400 uppercase tracking-wider">Energía</div>
-                <div className="text-3xl font-mono text-yellow-400">{gameState.peelsCollected}</div>
+        {/* Modals */}
+        {gameState.showOptions && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
+            <div className="bg-[#5d4037] w-full max-w-[320px] p-6 rounded-2xl border-8 border-[#3e2723] shadow-2xl relative">
+              <button 
+                onClick={() => setGameState(prev => ({ ...prev, showOptions: false }))}
+                className="absolute -top-4 -right-4 bg-red-600 p-2 rounded-full border-4 border-[#3e2723] text-white shadow-lg"
+              >
+                <X size={20} />
+              </button>
+              <h2 className="text-2xl font-black text-yellow-400 italic mb-6 text-center uppercase tracking-widest">OPCIONES</h2>
+              
+              <div className="space-y-6">
+                <div>
+                  <label className="text-xs font-black text-[#d7ccc8] uppercase mb-2 block">VOLUMEN MÚSICA</label>
+                  <input 
+                    type="range" 
+                    min="0" 
+                    max="1" 
+                    step="0.1" 
+                    value={gameState.volume}
+                    onChange={(e) => setGameState(prev => ({ ...prev, volume: parseFloat(e.target.value) }))}
+                    className="w-full h-4 bg-[#3e2723] rounded-full appearance-none cursor-pointer accent-yellow-400"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-black text-[#d7ccc8] uppercase">PANTALLA COMPLETA</span>
+                  <input type="checkbox" className="w-6 h-6 accent-lime-500" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-black text-[#d7ccc8] uppercase">MODO EXPERTO</span>
+                  <input type="checkbox" className="w-6 h-6 accent-lime-500" />
+                </div>
               </div>
             </div>
+          </div>
+        )}
 
-            <button
-              onClick={startGame}
-              className="flex items-center gap-2 bg-white hover:bg-zinc-200 text-red-900 font-bold py-3 px-8 rounded-full transition-transform hover:scale-105 active:scale-95"
-            >
-              <RotateCcw size={24} />
-              Reintentar
-            </button>
+        {gameState.showProfile && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
+            <div className="bg-[#5d4037] w-full max-w-[320px] p-6 rounded-2xl border-8 border-[#3e2723] shadow-2xl relative">
+              <button 
+                onClick={() => setGameState(prev => ({ ...prev, showProfile: false }))}
+                className="absolute -top-4 -right-4 bg-red-600 p-2 rounded-full border-4 border-[#3e2723] text-white shadow-lg"
+              >
+                <X size={20} />
+              </button>
+              <h2 className="text-2xl font-black text-yellow-400 italic mb-6 text-center uppercase tracking-widest">PERFIL</h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-black text-[#d7ccc8] uppercase mb-2 block">NOMBRE JUGADOR</label>
+                  <input 
+                    type="text" 
+                    value={gameState.playerName}
+                    onChange={(e) => setGameState(prev => ({ ...prev, playerName: e.target.value }))}
+                    className="w-full bg-[#3e2723] p-3 rounded-xl border-2 border-[#8d6e63] text-white font-bold focus:outline-none focus:border-yellow-400"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <button className="bg-lime-600 p-3 rounded-xl border-b-4 border-lime-800 font-black italic text-xs">CREAR</button>
+                  <button className="bg-red-600 p-3 rounded-xl border-b-4 border-red-800 font-black italic text-xs">BORRAR</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {gameState.showAchievements && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
+            <div className="bg-[#5d4037] w-full max-w-[320px] p-6 rounded-2xl border-8 border-[#3e2723] shadow-2xl relative">
+              <button 
+                onClick={() => setGameState(prev => ({ ...prev, showAchievements: false }))}
+                className="absolute -top-4 -right-4 bg-red-600 p-2 rounded-full border-4 border-[#3e2723] text-white shadow-lg"
+              >
+                <X size={20} />
+              </button>
+              <h2 className="text-2xl font-black text-yellow-400 italic mb-6 text-center uppercase tracking-widest">LOGROS</h2>
+              
+              <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                {[
+                  { name: 'Primer Escape', done: true },
+                  { name: 'Coleccionista', done: false },
+                  { name: 'Velocidad Pura', done: true },
+                  { name: 'Intocable', done: false },
+                  { name: 'Maestro Mono', done: false },
+                ].map((ach, i) => (
+                  <div key={i} className={`flex items-center gap-3 p-3 rounded-xl border-2 ${ach.done ? 'bg-[#3e2723] border-lime-500/50' : 'bg-[#3e2723]/50 border-[#8d6e63]/30'}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${ach.done ? 'bg-lime-500 text-white' : 'bg-[#2d1b18] text-[#8d6e63]'}`}>
+                      {ach.done ? <Trophy size={16} /> : <Star size={16} />}
+                    </div>
+                    <span className={`text-sm font-bold italic ${ach.done ? 'text-white' : 'text-[#8d6e63]'}`}>{ach.name}</span>
+                    {ach.done && <div className="ml-auto w-2 h-2 bg-lime-500 rounded-full shadow-[0_0_8px_rgba(132,204,22,0.8)]" />}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>
-      
-      <div className="mt-6 text-zinc-500 text-sm max-w-md text-center">
-        Usa <kbd className="bg-zinc-800 px-2 py-1 rounded text-zinc-300">A</kbd> y <kbd className="bg-zinc-800 px-2 py-1 rounded text-zinc-300">D</kbd> para girar. <kbd className="bg-zinc-800 px-2 py-1 rounded text-zinc-300">W</kbd> para acelerar, <kbd className="bg-zinc-800 px-2 py-1 rounded text-zinc-300">S</kbd> para frenar.
-      </div>
+
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: #3e2723;
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #8d6e63;
+          border-radius: 10px;
+        }
+      `}</style>
     </div>
   );
 }
