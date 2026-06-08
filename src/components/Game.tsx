@@ -183,7 +183,8 @@ export default function Game() {
       lastTime: performance.now(),
       scoreTimer: 0,
     };
-    setGameState({ 
+    setGameState(prev => ({ 
+      ...prev,
       isPlaying: true, 
       gameOver: false, 
       hasWon: false,
@@ -191,7 +192,7 @@ export default function Game() {
       peelsCollected: 0,
       monkeyDistance: 100,
       progress: 0
-    });
+    }));
     requestAnimationFrame(gameLoop);
   };
 
@@ -368,11 +369,11 @@ export default function Game() {
     
     // Score & Progress
     state.scoreTimer += deltaTime;
-    if (state.scoreTimer > 1000) {
+    if (state.scoreTimer > 100) {
       setGameState(prev => ({
         ...prev,
-        score: prev.score + 1,
-        monkeyDistance: Math.floor(state.monkeyDistance),
+        score: Math.floor(state.distanceTraveled),
+        monkeyDistance: Math.max(0, Math.min(100, Math.floor(state.monkeyDistance))),
         peelsCollected: state.peelsCollected,
         progress: Math.min(100, (state.distanceTraveled / TOTAL_DISTANCE) * 100)
       }));
@@ -529,11 +530,20 @@ export default function Game() {
 
         {/* HUD Top */}
         <div className="absolute top-6 left-6 right-6 flex justify-between items-start pointer-events-none">
-          <div className="bg-[#5d4037]/90 p-3 rounded-lg border-2 border-[#8d6e63] shadow-lg">
-            <div className="text-[10px] text-[#d7ccc8] uppercase font-black flex items-center gap-1 mb-1">
-              <Zap size={12} className="text-yellow-400" /> ENERGÍA
+          <div className="flex flex-col gap-2">
+            <div className="bg-[#5d4037]/90 p-2.5 rounded-lg border-2 border-[#8d6e63] shadow-lg min-w-[95px]">
+              <div className="text-[9px] text-[#d7ccc8] uppercase font-black flex items-center gap-1 mb-0.5">
+                <Zap size={10} className="text-yellow-400 fill-yellow-400" /> ENERGÍA
+              </div>
+              <div className="text-2xl font-black text-yellow-400 leading-none drop-shadow-sm">{gameState.peelsCollected}</div>
             </div>
-            <div className="text-3xl font-black text-yellow-400 leading-none drop-shadow-sm">{gameState.peelsCollected}</div>
+
+            <div className="bg-[#5d4037]/90 p-2.5 rounded-lg border-2 border-[#8d6e63] shadow-lg min-w-[95px]">
+              <div className="text-[9px] text-[#d7ccc8] uppercase font-black flex items-center gap-1 mb-0.5">
+                <Trophy size={10} className="text-yellow-400" /> PUNTAJE
+              </div>
+              <div className="text-2xl font-black text-white leading-none drop-shadow-sm">{gameState.score}</div>
+            </div>
           </div>
           
           <div className="bg-[#5d4037]/90 p-3 rounded-lg border-2 border-[#8d6e63] shadow-lg w-40">
@@ -636,7 +646,13 @@ export default function Game() {
               <div className="bg-red-600 px-6 py-2 rounded-full border-2 border-red-400 mb-6 shadow-lg -rotate-3">
                 <h2 className="text-3xl font-black text-white italic tracking-tighter">¡TE ATRAPARON!</h2>
               </div>
-              <p className="text-[#d7ccc8] font-bold mb-6 text-center italic">El mono te alcanzó antes de llegar a la meta.</p>
+              <p className="text-[#d7ccc8] font-bold mb-4 text-center italic">El mono te alcanzó antes de llegar a la meta.</p>
+              
+              <div className="bg-[#3e2723] p-3 rounded-xl border-2 border-[#8d6e63] flex flex-col items-center mb-6 min-w-[120px]">
+                <span className="text-[10px] text-[#8d6e63] font-black uppercase">PUNTAJE</span>
+                <span className="text-2xl font-black text-yellow-400">{gameState.score}</span>
+              </div>
+
               <button
                 onClick={startGame}
                 className="w-full bg-yellow-400 hover:bg-yellow-300 text-[#3e2723] p-4 rounded-xl border-b-8 border-yellow-600 active:border-b-0 active:translate-y-2 transition-all font-black text-xl italic"
@@ -663,8 +679,8 @@ export default function Game() {
                   <span className="text-2xl font-black text-yellow-400">{gameState.peelsCollected}</span>
                 </div>
                 <div className="bg-[#3e2723] p-3 rounded-xl border-2 border-[#8d6e63] flex flex-col items-center">
-                  <span className="text-[10px] text-[#8d6e63] font-black uppercase">TIEMPO</span>
-                  <span className="text-2xl font-black text-white">{gameState.score}s</span>
+                  <span className="text-[10px] text-[#8d6e63] font-black uppercase">PUNTAJE</span>
+                  <span className="text-2xl font-black text-white">{gameState.score}</span>
                 </div>
               </div>
               <button
@@ -791,22 +807,17 @@ export default function Game() {
                 <h2 className="text-2xl font-black text-yellow-400 italic text-center uppercase tracking-widest drop-shadow-md">NUESTRA HISTORIA</h2>
               </div>
               
-              <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3 text-[#f5f5f5] text-[11px] font-semibold leading-relaxed text-justify">
-                <p className="bg-[#3e2723] p-2.5 rounded-lg border border-[#8d6e63]/30">
-                  En medio de la selva vive una banana muy peculiar y su objetivo es sobrevivir ya que no es una banana real, el problema es que un mono la ha elegido como su próxima comida y no piensa rendirse.
+              <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3 text-[#f5f5f5] text-xs font-semibold leading-relaxed text-justify">
+                <p className="bg-[#3e2723] p-3 rounded-lg border border-[#8d6e63]/30 text-center text-sm font-bold text-yellow-400">
+                  ¡SÁLVATE DE SER EL ALMUERZO! 🍌🐒
                 </p>
-                <p className="bg-[#3e2723] p-2.5 rounded-lg border border-[#8d6e63]/30">
-                  El juego comienza cuando la banana debe empezar a moverse por una selva, para defenderse y ganar ventaja, la banana puede recolectar cáscaras especiales que aparecen en el camino. Algunas cáscaras le dan más velocidad por unos segundos, otras crean trampas para que el mono resbale y pierda tiempo.
-                </p>
-                <p className="bg-[#3e2723] p-3 rounded-lg border border-[#8d6e63]/40 bg-gradient-to-r from-[#5d4037]/20 to-[#8d6e63]/10 italic text-[#ffe082]">
-                  También hay cáscaras que le permiten atravesar obstáculos o volverse más resistente. Las más raras le dan habilidades únicas que pueden cambiar el rumbo de la persecución.
-                </p>
-                <p className="bg-[#3e2723] p-2.5 rounded-lg border border-[#8d6e63]/30">
-                  El jugador debe decidir cuándo usar cada poder, qué rutas tomar y cómo aprovechar el entorno para escapar. No se trata solo de correr, sino de pensar rápido y usar las habilidades en el momento correcto.
-                </p>
-                <p className="bg-[#3e2723] p-2.5 rounded-lg border-2 border-yellow-500/40 text-yellow-105 font-extrabold shadow-md bg-yellow-950/10">
-                  Es una carrera constante donde cada decisión importa y cada cáscara puede marcar la diferencia entre escapar… o convertirse en el almuerzo del mono.
-                </p>
+                <div className="bg-[#3e2723] p-4 rounded-lg border border-[#8d6e63]/30 text-[#f5f5f5] text-xs leading-relaxed font-medium">
+                  En lo profundo de la selva vive una banana muy peculiar: no es una banana real y debe escapar de un mono hambriento que la ha elegido como su próxima comida.
+                  <br /><br />
+                  Durante la persecución, la banana recolecta cáscaras especiales que le otorgan habilidades únicas, como aumentar su velocidad, crear trampas o superar obstáculos.
+                  <br /><br />
+                  Cada decisión cuenta en esta carrera llena de acción, donde pensar rápido será la clave para sobrevivir y evitar convertirse en el almuerzo del mono. 🍌🐒
+                </div>
               </div>
               
               <button
