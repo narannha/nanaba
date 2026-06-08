@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Play, RotateCcw, Zap, Flag, Settings, User, Trophy, Info, X, Star } from 'lucide-react';
+import { Play, RotateCcw, Zap, Flag, Settings, User, Trophy, Info, X, Star, BookOpen } from 'lucide-react';
 
 import bananaSvg from '../../assets/banana.svg';
 import espaldaNanaSvg from '../../assets/espalda nana.svg';
@@ -76,6 +76,7 @@ interface GameState {
   showOptions: boolean;
   showProfile: boolean;
   showAchievements: boolean;
+  showStory: boolean;
   playerName: string;
   volume: number;
 }
@@ -94,6 +95,7 @@ export default function Game() {
     showOptions: false,
     showProfile: false,
     showAchievements: false,
+    showStory: true,
     playerName: 'Player 1',
     volume: 0.5,
   });
@@ -609,9 +611,12 @@ export default function Game() {
                       <User size={20} className="text-[#d7ccc8]" />
                       <span className="text-xs font-black italic">PERFIL</span>
                     </button>
-                    <button className="bg-[#6d4c41] hover:bg-[#795548] p-3 rounded-xl border-b-4 border-[#3e2723] active:border-b-0 active:translate-y-1 transition-all flex flex-col items-center gap-1">
-                      <Star size={20} className="text-[#d7ccc8]" />
-                      <span className="text-xs font-black italic">EXTRA</span>
+                    <button 
+                      onClick={() => setGameState(prev => ({ ...prev, showStory: true }))}
+                      className="bg-[#6d4c41] hover:bg-[#795548] p-3 rounded-xl border-b-4 border-[#3e2723] active:border-b-0 active:translate-y-1 transition-all flex flex-col items-center gap-1"
+                    >
+                      <BookOpen size={20} className="text-[#d7ccc8]" />
+                      <span className="text-xs font-black italic">HISTORIA</span>
                     </button>
                   </div>
                 </div>
@@ -768,6 +773,48 @@ export default function Game() {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        )}
+
+        {gameState.showStory && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4">
+            <div className="bg-[#5d4037] w-full max-w-[340px] p-5 rounded-2xl border-8 border-[#3e2723] shadow-2xl relative flex flex-col max-h-[90%]">
+              <button 
+                onClick={() => setGameState(prev => ({ ...prev, showStory: false }))}
+                className="absolute -top-3 -right-3 bg-red-600 p-2 rounded-full border-4 border-[#3e2723] text-white shadow-lg focus:outline-none hover:bg-red-500 active:scale-95 transition-all z-10 animate-pulse"
+              >
+                <X size={18} />
+              </button>
+              <div className="flex items-center justify-center gap-2 mb-3">
+                <BookOpen size={24} className="text-yellow-400 stroke-[2.5]" />
+                <h2 className="text-2xl font-black text-yellow-400 italic text-center uppercase tracking-widest drop-shadow-md">NUESTRA HISTORIA</h2>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3 text-[#f5f5f5] text-[11px] font-semibold leading-relaxed text-justify">
+                <p className="bg-[#3e2723] p-2.5 rounded-lg border border-[#8d6e63]/30">
+                  En medio de la selva vive una banana muy peculiar y su objetivo es sobrevivir ya que no es una banana real, el problema es que un mono la ha elegido como su próxima comida y no piensa rendirse.
+                </p>
+                <p className="bg-[#3e2723] p-2.5 rounded-lg border border-[#8d6e63]/30">
+                  El juego comienza cuando la banana debe empezar a moverse por una selva, para defenderse y ganar ventaja, la banana puede recolectar cáscaras especiales que aparecen en el camino. Algunas cáscaras le dan más velocidad por unos segundos, otras crean trampas para que el mono resbale y pierda tiempo.
+                </p>
+                <p className="bg-[#3e2723] p-3 rounded-lg border border-[#8d6e63]/40 bg-gradient-to-r from-[#5d4037]/20 to-[#8d6e63]/10 italic text-[#ffe082]">
+                  También hay cáscaras que le permiten atravesar obstáculos o volverse más resistente. Las más raras le dan habilidades únicas que pueden cambiar el rumbo de la persecución.
+                </p>
+                <p className="bg-[#3e2723] p-2.5 rounded-lg border border-[#8d6e63]/30">
+                  El jugador debe decidir cuándo usar cada poder, qué rutas tomar y cómo aprovechar el entorno para escapar. No se trata solo de correr, sino de pensar rápido y usar las habilidades en el momento correcto.
+                </p>
+                <p className="bg-[#3e2723] p-2.5 rounded-lg border-2 border-yellow-500/40 text-yellow-105 font-extrabold shadow-md bg-yellow-950/10">
+                  Es una carrera constante donde cada decisión importa y cada cáscara puede marcar la diferencia entre escapar… o convertirse en el almuerzo del mono.
+                </p>
+              </div>
+              
+              <button
+                onClick={() => setGameState(prev => ({ ...prev, showStory: false }))}
+                className="mt-4 bg-yellow-400 hover:bg-yellow-300 text-[#3e2723] p-3 rounded-xl border-b-4 border-yellow-600 active:border-b-0 active:translate-y-1 transition-all font-black text-xs italic uppercase tracking-wider shadow-lg flex items-center justify-center gap-2"
+              >
+                ¡ENTENDIDO, A CORRER!
+              </button>
             </div>
           </div>
         )}
